@@ -3,8 +3,9 @@ title: 'Hierarchical Bayes '
 subtitle: for Generalized Linear Mixed Effect Model
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output:
+  pdf_document: default
   html_document:
-    keep_md: true
+    keep_md: yes
 header-includes:
 - \usepackage{amssymb}
 - \usepackage{amsmath}
@@ -20,7 +21,7 @@ options(repos="https://cran.rstudio.com")
 options(scipen=6)
 options(digits=4)
 if (!require(pacman)) {install.packages("pacman"); library(pacman)}
-p_load(stargazer, pscl, mlmRev,mvtnorm, MASS, ggplot2,tidyverse,mlogit,BayesLogit,robcbi,kableExtra,truncnorm,lme4) # likelihoodAsy, coda,devtools,loo,dagitty,rethinking
+p_load(stargazer, pscl, mlmRev,mvtnorm, MASS,brms,coda, ggplot2,tidyverse,mlogit,BayesLogit,robcbi,kableExtra,truncnorm,lme4) # likelihoodAsy, devtools,loo,dagitty,rethinking
 ```
 
 
@@ -118,20 +119,14 @@ abline(h= BETA.MLS[2],col="black",lwd=2)
 ### Full conditional distributions
 
 \[
-\begin{align} 
-\{\boldsymbol{\beta|y_j,X_j,\theta},\sigma^2,\Sigma\}&\sim N_p\left([\Sigma^{-1}+\frac{1}{\sigma^2}\mathbf{X_j'X_j}]^{-1}[\Sigma^{-1}\boldsymbol{\theta}+\frac{1}{\sigma^2}\mathbf{X_j'y_j}],[\Sigma^{-1}+\frac{1}{\sigma^2}\mathbf{X_j'X_j}]^{-1}\right) &&\\ 
-\end{align}
-\]
-
-\[
-\begin{align} 
+\begin{aligned} 
+\{\boldsymbol{\beta|y_j,X_j,\theta},\sigma^2,\Sigma\}&\sim N_p\left([\Sigma^{-1}+\frac{1}{\sigma^2}\mathbf{X_j'X_j}]^{-1}[\Sigma^{-1}\boldsymbol{\theta}+\frac{1}{\sigma^2}\mathbf{X_j'y_j}],[\Sigma^{-1}+\frac{1}{\sigma^2}\mathbf{X_j'X_j}]^{-1}\right)\\
 \{\boldsymbol{\theta|\beta_{1:m}},\Sigma\}&\sim N_p(\boldsymbol{\mu_m,\Lambda_m});\quad \Lambda_m=(\Lambda_0^{-1}+m\Sigma^{-1})^{-1};\quad
 \boldsymbol{\mu_m}=\Lambda_m(\Lambda_0^{-1}\boldsymbol{\mu_0}+m\Sigma^{-1}\boldsymbol{\bar\beta}) \\
-
 \{\Sigma|\boldsymbol{\theta,\beta_{1:m}}\}&\sim Inverse-Wishart(\eta_{0}+m,\boldsymbol{[S_0+S_\theta]^{-1}});\quad
 \boldsymbol{S_\theta}=\sum_{j=1}^m\boldsymbol{(\beta_j-\theta)(\beta_j-\theta)^T} \\
 \sigma^2&\sim Inverse-Gamma(\frac12[\nu_0+\sum n_j],\frac12[\nu_0\sigma_0^2+\text{SSR}]);\quad \text{SSR}=\sum_{j=1}^m\sum_{i=1}^n(y_{i,j}-\boldsymbol{\beta_j^T x_{i,j}})^2 \\ 
-\end{align}
+\end{aligned}
 \]
 
 
