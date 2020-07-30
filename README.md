@@ -1,10 +1,10 @@
 ---
-title: 'Hierarchical Bayes '
-subtitle: for Generalized Linear Mixed Effect Model
-date: "`r format(Sys.time(), '%d %B, %Y')`"
-output:
+title: "Hierarchical Bayes "
+subtitle: "for Generalized Linear Mixed Effect Model"
+date: "29 July, 2020"
+output: 
   html_document:
-    df_print: paged
+    keep_md: true
 header-includes:
 - \usepackage{amssymb}
 - \usepackage{amsmath}
@@ -13,15 +13,7 @@ header-includes:
 
 
 
-```{r setup, include=F}
-knitr::opts_chunk$set(message=FALSE, warning=F, echo=TRUE,cache = TRUE, fig.path = "README_figs/README-")
-options(width = 2000)
-options(repos="https://cran.rstudio.com")
-options(scipen=6)
-options(digits=4)
-if (!require(pacman)) {install.packages("pacman"); library(pacman)}
-p_load(stargazer, pscl, mlmRev,mvtnorm, MASS, ggplot2,tidyverse,mlogit,BayesLogit,robcbi,kableExtra,truncnorm,lme4) # likelihoodAsy, coda,devtools,loo,dagitty,rethinking
-```
+
 
 
 #  {.tabset .tabset-fade .tabset-pills}
@@ -35,7 +27,8 @@ p_load(stargazer, pscl, mlmRev,mvtnorm, MASS, ggplot2,tidyverse,mlogit,BayesLogi
 
 
 
-```{r, eval=F}
+
+```r
 NHTS2017 <- (read.csv("~/trippub.csv"))[,c(1,30,62,64,69,72,85)]
 # NHTS2017 <- NHTS2017[complete.cases(NHTS2017),]
 NHTS2017 <- NHTS2017[NHTS2017$VMT_MILE!=-1&NHTS2017$HHFAMINC>=0&NHTS2017$HH_CBSA!="XXXXX", ]
@@ -49,11 +42,46 @@ excluded the zero-miles VMT, negative household income, and unknown CBSA id (XXX
 
 Sample 10000 observations from the original data 
 
-```{r, eval=T}
+
+```r
 load("nhts2017.RData")
 str(nhts2017)
+```
+
+```
+## 'data.frame':	10000 obs. of  7 variables:
+##  $ HOUSEID : int  40005335 40743760 30193252 40755224 30073043 40701486 30383843 40307923 40691921 40710604 ...
+##  $ VMT_MILE: num  2.156 3.824 70.617 0.286 3.024 ...
+##  $ HHSIZE  : int  2 2 2 1 1 2 2 5 3 1 ...
+##  $ HHFAMINC: int  5 9 8 6 5 5 5 9 10 8 ...
+##  $ WRKCOUNT: int  2 2 2 1 1 0 1 1 2 0 ...
+##  $ LIF_CYC : int  2 2 2 1 9 10 2 4 6 9 ...
+##  $ HH_CBSA : Factor w/ 53 levels "12060","12420",..: 17 30 26 17 6 26 48 8 52 42 ...
+```
+
+```r
 summary(nhts2017)
+```
+
+```
+##     HOUSEID            VMT_MILE          HHSIZE         HHFAMINC       WRKCOUNT       LIF_CYC         HH_CBSA    
+##  Min.   :30000008   Min.   :   0.0   Min.   : 1.00   Min.   : 1.0   Min.   :0.00   Min.   : 1.00   19100  :1790  
+##  1st Qu.:30262488   1st Qu.:   1.9   1st Qu.: 2.00   1st Qu.: 6.0   1st Qu.:1.00   1st Qu.: 2.00   26420  : 974  
+##  Median :30531032   Median :   4.2   Median : 2.00   Median : 7.0   Median :1.00   Median : 5.00   35620  : 832  
+##  Mean   :35058745   Mean   :  10.0   Mean   : 2.56   Mean   : 7.1   Mean   :1.35   Mean   : 5.32   40900  : 660  
+##  3rd Qu.:40360806   3rd Qu.:  10.3   3rd Qu.: 3.00   3rd Qu.: 9.0   3rd Qu.:2.00   3rd Qu.: 9.00   33340  : 567  
+##  Max.   :40794179   Max.   :1861.6   Max.   :11.00   Max.   :11.0   Max.   :7.00   Max.   :10.00   31080  : 537  
+##                                                                                                    (Other):4640
+```
+
+```r
 table(nhts2017$HH_CBSA)
+```
+
+```
+## 
+## 12060 12420 12580 13820 14460 15380 16740 16980 17140 17460 18140 19100 19740 19820 24340 25540 26420 26900 27260 28140 29820 31080 31140 32820 33100 33340 33460 34980 35380 35620 36420 36740 37980 38060 38300 38900 39300 39580 40060 40140 40380 40900 41180 41620 41700 41740 41860 41940 42660 45300 47260 47900 XXXXX 
+##   480   422    77    17    68   130   171   157    32    39    34  1790    41    41    19    17   974    27    27    29    23   537    12    19    43   567   112    19    19   832    17    26   104   138    44    39    43   106    23   176   176   660    54    23   318   516   350   180    52    30    35   115     0
 ```
 
 There are $m=52$ levels of CBSA.
@@ -62,7 +90,8 @@ $\mathbf{Y}_{j}$ is a $n_j$ Vector.
 
 $\mathbf{X}_{j}$ is a $n_j\times p$ Matrix 
 
-```{r}
+
+```r
 ids<-sort(unique(nhts2017$HH_CBSA)) 
 m<-length(ids)
 Y<-list() ; X<-list() ; N<-NULL
@@ -78,7 +107,8 @@ for(j in 1:m)
 
 ### OLS fits
 
-```{r,collapse=T}
+
+```r
 S2.LS<-BETA.LS<-NULL
 for(j in 1:m) {
   fit<-lm(Y[[j]]~-1+X[[j]] )
@@ -87,11 +117,12 @@ for(j in 1:m) {
 }
 ```
 
-The first panel plots least squares estimates of the regression lines for the `r m` CBSA, along with an average of these lines in black. A large majority show an slight increase in expected VMT with increasing household income, although a few show a negative relationship. 
+The first panel plots least squares estimates of the regression lines for the 52 CBSA, along with an average of these lines in black. A large majority show an slight increase in expected VMT with increasing household income, although a few show a negative relationship. 
 
 The second and third panels of the figure relate the least squares estimates to sample size. Notice that CBSAs with the higher sample sizes have regression coefficients that are generally closer to the average, whereas CBSAs with extreme coefficients are generally those with low sample sizes. This phenomenon confirms that the smaller the sample size for the group, the more probable that unrepresentative data are sampled and an extreme least squares estimate is produced.
 
-```{r,collapse=T,out.width="30%",fig.show='hold'}
+
+```r
 plot( range(nhts2017[,4]),c(0,40),type="n",xlab="HHFAMINC", ylab="VMT")  # range(NHTS2017[,2])
 for(j in 1:m) {    abline(BETA.LS[j,1],BETA.LS[j,2],col="gray")  }
 
@@ -103,6 +134,8 @@ abline(h= BETA.MLS[1],col="black",lwd=2)
 plot(N,BETA.LS[,2],xlab="sample size",ylab="slope")
 abline(h= BETA.MLS[2],col="black",lwd=2)
 ```
+
+<img src="README_figs/README-unnamed-chunk-5-1.png" width="30%" /><img src="README_figs/README-unnamed-chunk-5-2.png" width="30%" /><img src="README_figs/README-unnamed-chunk-5-3.png" width="30%" />
 
 
 ### A hierarchical regression model
@@ -142,7 +175,8 @@ abline(h= BETA.MLS[2],col="black",lwd=2)
 
 #### mvnormal simulation
 
-```{r}
+
+```r
 rmvnorm<-function(n,mu,Sigma)
 { 
   E<-matrix(rnorm(n*length(mu)),n,length(mu))
@@ -152,7 +186,8 @@ rmvnorm<-function(n,mu,Sigma)
 
 #### Wishart simulation
 
-```{r}
+
+```r
 rwish<-function(n,nu0,S0)
 {
   sS0 <- chol(S0)
@@ -169,7 +204,8 @@ rwish<-function(n,nu0,S0)
 
 #### Setup
 
-```{r,collapse=T}
+
+```r
 p<-dim(X[[1]])[2]
 theta<-mu0<-apply(BETA.LS,2,mean)
 nu0<-1 ; s2<-s20<-mean(S2.LS)
@@ -182,11 +218,13 @@ BETA.ps<-BETA*0
 BETA.pp<-NULL
 set.seed(1)
 mu0[2]+c(-1.96,1.96)*sqrt(L0[2,2])
+## [1] -2.451  2.477
 ```
 
 #### MCMC
 
-```{r}
+
+```r
 for(s in 1:10000) {
   ##update beta_j 
   for(j in 1:m) 
@@ -228,13 +266,21 @@ for(s in 1:10000) {
 
 #### MCMC diagnostics
 
-```{r,collapse=T,out.width="30%",fig.show='hold'}
+
+```r
 library(coda)
 effectiveSize(S2.b)
+## var1 
+## 1099
 effectiveSize(THETA.b[,1])
+##  var1 
+## 829.1
 effectiveSize(THETA.b[,2])
+##  var1 
+## 724.4
 
 apply(SIGMA.PS,2,effectiveSize)
+## [1] 747.2 674.0 674.0 724.0
 
 tmp<-NULL;for(j in 1:dim(SIGMA.PS)[2]) { tmp<-c(tmp,acf(SIGMA.PS[,j])$acf[2]) }
 
@@ -243,9 +289,12 @@ acf(THETA.b[,1])
 acf(THETA.b[,2])
 ```
 
+<img src="README_figs/README-unnamed-chunk-10-1.png" width="30%" /><img src="README_figs/README-unnamed-chunk-10-2.png" width="30%" /><img src="README_figs/README-unnamed-chunk-10-3.png" width="30%" /><img src="README_figs/README-unnamed-chunk-10-4.png" width="30%" /><img src="README_figs/README-unnamed-chunk-10-5.png" width="30%" /><img src="README_figs/README-unnamed-chunk-10-6.png" width="30%" /><img src="README_figs/README-unnamed-chunk-10-7.png" width="30%" />
 
 
-```{r,collapse=T,out.width="50%",fig.show='hold'}
+
+
+```r
 plot(density(THETA.b[,2],adj=2),xlim=range(BETA.pp[,2]), 
       main="",xlab="slope parameter",ylab="posterior density",lwd=2)
 lines(density(BETA.pp[,2],adj=2),col="gray",lwd=2)
@@ -253,13 +302,18 @@ legend( -3 ,1.0 ,legend=c( expression(theta[2]),expression(tilde(beta)[2])),
         lwd=c(2,2),col=c("black","gray"),bty="n") 
 
 quantile(THETA.b[,2],prob=c(.025,.5,.975))
+##    2.5%     50%   97.5% 
+## -0.1237  0.2391  0.5817
 mean(BETA.pp[,2]<0) 
+## [1] 0.346
 
 BETA.PM<-BETA.ps/1000
 plot( range(nhts2017[,4]),c(0,40),type="n",xlab="HHFAMINC", ylab="VMT") # range(nels[,3]),range(nels[,4])
 for(j in 1:m) {    abline(BETA.PM[j,1],BETA.PM[j,2],col="gray")  }
 abline( mean(THETA.b[,1]),mean(THETA.b[,2]),lwd=2 )
 ```
+
+<img src="README_figs/README-unnamed-chunk-11-1.png" width="50%" /><img src="README_figs/README-unnamed-chunk-11-2.png" width="50%" />
 
 
 
