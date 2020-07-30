@@ -108,32 +108,11 @@ abline(h= BETA.MLS[2],col="black",lwd=2)
 
 \[\mathbf{Y}_{i,j}=\boldsymbol{\beta_j^T x_{i,j}}+\varepsilon_{i,j}=\boldsymbol{\theta^T x_{i,j}+\gamma_j^T x_{i,j}}+\varepsilon_{i,j}\]
 
+- mvnormal simulation
+
+\(\boldsymbol{\beta}_{1:m}\overset{iid}{\sim} N_p(\boldsymbol{\theta},\Sigma)\), \(\boldsymbol{\gamma}_{1:m}\overset{iid}{\sim} N_p(0,\Sigma)\)
 
 \(\boldsymbol{\theta}\sim N_p(\boldsymbol{\mu_0,\Lambda_0})\), 
-
-\(\Sigma\sim Inverse-Wishart(\eta_{0},\boldsymbol{S_0^{-1}})\), 
-
-\(\sigma^2\sim Inverse-Gamma(\frac12\nu_0,\frac12\nu_0\sigma_0^2)\)
-
-
-### Full conditional distributions
-
-\[
-\begin{aligned} 
-\{\boldsymbol{\beta|y_j,X_j,\theta},\sigma^2,\Sigma\}&\sim N_p\left([\Sigma^{-1}+\frac{1}{\sigma^2}\mathbf{X_j'X_j}]^{-1}[\Sigma^{-1}\boldsymbol{\theta}+\frac{1}{\sigma^2}\mathbf{X_j'y_j}],[\Sigma^{-1}+\frac{1}{\sigma^2}\mathbf{X_j'X_j}]^{-1}\right)\\
-\{\boldsymbol{\theta|\beta_{1:m}},\Sigma\}&\sim N_p(\boldsymbol{\mu_m,\Lambda_m});\quad \Lambda_m=(\Lambda_0^{-1}+m\Sigma^{-1})^{-1};\quad
-\boldsymbol{\mu_m}=\Lambda_m(\Lambda_0^{-1}\boldsymbol{\mu_0}+m\Sigma^{-1}\boldsymbol{\bar\beta}) \\
-\{\Sigma|\boldsymbol{\theta,\beta_{1:m}}\}&\sim Inverse-Wishart(\eta_{0}+m,\boldsymbol{[S_0+S_\theta]^{-1}});\quad
-\boldsymbol{S_\theta}=\sum_{j=1}^m\boldsymbol{(\beta_j-\theta)(\beta_j-\theta)^T} \\
-\sigma^2&\sim Inverse-Gamma(\frac12[\nu_0+\sum n_j],\frac12[\nu_0\sigma_0^2+\text{SSR}]);\quad \text{SSR}=\sum_{j=1}^m\sum_{i=1}^n(y_{i,j}-\boldsymbol{\beta_j^T x_{i,j}})^2 \\ 
-\end{aligned}
-\]
-
-
-
-### Posterior analysis
-
-#### mvnormal simulation
 
 ```{r}
 rmvnorm<-function(n,mu,Sigma)
@@ -143,7 +122,9 @@ rmvnorm<-function(n,mu,Sigma)
 }
 ```
 
-#### Wishart simulation
+- Wishart simulation
+
+\(\Sigma\sim Inverse-Wishart(\eta_{0},\boldsymbol{S_0^{-1}})\), 
 
 ```{r}
 rwish<-function(n,nu0,S0)
@@ -159,8 +140,28 @@ rwish<-function(n,nu0,S0)
 }
 ```
 
+\(\sigma^2\sim Inverse-Gamma(\frac12\nu_0,\frac12\nu_0\sigma_0^2)\)
 
-#### Setup
+
+
+### MCMC
+
+Full conditional distributions
+
+\[
+\begin{aligned} 
+\{\boldsymbol{\beta|y_j,X_j,\theta},\sigma^2,\Sigma\}&\sim N_p\left([\Sigma^{-1}+\frac{1}{\sigma^2}\mathbf{X_j'X_j}]^{-1}[\Sigma^{-1}\boldsymbol{\theta}+\frac{1}{\sigma^2}\mathbf{X_j'y_j}],[\Sigma^{-1}+\frac{1}{\sigma^2}\mathbf{X_j'X_j}]^{-1}\right)\\
+\{\boldsymbol{\theta|\beta_{1:m}},\Sigma\}&\sim N_p(\boldsymbol{\mu_m,\Lambda_m});\quad \Lambda_m=(\Lambda_0^{-1}+m\Sigma^{-1})^{-1};\quad
+\boldsymbol{\mu_m}=\Lambda_m(\Lambda_0^{-1}\boldsymbol{\mu_0}+m\Sigma^{-1}\boldsymbol{\bar\beta}) \\
+\{\Sigma|\boldsymbol{\theta,\beta_{1:m}}\}&\sim Inverse-Wishart(\eta_{0}+m,\boldsymbol{[S_0+S_\theta]^{-1}});\quad
+\boldsymbol{S_\theta}=\sum_{j=1}^m\boldsymbol{(\beta_j-\theta)(\beta_j-\theta)^T} \\
+\sigma^2&\sim Inverse-Gamma(\frac12[\nu_0+\sum n_j],\frac12[\nu_0\sigma_0^2+\text{SSR}]);\quad \text{SSR}=\sum_{j=1}^m\sum_{i=1}^n(y_{i,j}-\boldsymbol{\beta_j^T x_{i,j}})^2 \\ 
+\end{aligned}
+\]
+
+- Setup
+
+take $\mu_0$, the prior expectation of $\theta$, to be equal to the average of the ordinary least squares regression estimates and the prior variance $\Lambda_0$ to be their sample covariance. Such a prior distribution represents the information of someone with unbiased but weak prior information.
 
 ```{r,collapse=T}
 p<-dim(X[[1]])[2]
@@ -177,7 +178,9 @@ set.seed(1)
 mu0[2]+c(-1.96,1.96)*sqrt(L0[2,2])
 ```
 
-#### MCMC
+For example, a 95% prior confidence interval for the slope parameter $\theta_2$ under this prior is (`r mu0[2]+c(-1.96,1.96)*sqrt(L0[2,2])`), which is quite a large range when considering what the extremes of the interval imply in terms of average change in VMT per unit change in income. Similarly, we will take the prior sum of squares matrix $S_0$ to be
+equal to the covariance of the least squares estimate, but we’ll take the prior degrees of freedom $\eta_0$ to be $p+2=4$, so that the prior distribution of $\Sigma$ is reasonably diffuse but has an expectation equal to the sample covariance of the least squares estimates. Finally, we’ll take $\sigma^2_0$ to be the average of the within-group sample variance but set $\nu_0=1$.
+
 
 ```{r}
 for(s in 1:10000) {
@@ -219,30 +222,37 @@ for(s in 1:10000) {
 }
 ```
 
-#### MCMC diagnostics
+- MCMC diagnostics
+
 
 ```{r,collapse=T,out.width="30%",fig.show='hold'}
 library(coda)
 effectiveSize(S2.b)
 effectiveSize(THETA.b[,1])
 effectiveSize(THETA.b[,2])
-
 apply(SIGMA.PS,2,effectiveSize)
+```
 
-tmp<-NULL;for(j in 1:dim(SIGMA.PS)[2]) { tmp<-c(tmp,acf(SIGMA.PS[,j])$acf[2]) }
 
+```{r,out.width="25%",fig.show='hold'}
+tmp<-NULL; for(j in 1:dim(SIGMA.PS)[2]) { tmp<-c(tmp,acf(SIGMA.PS[,j])$acf[2]) }
+tmp
+```
+
+
+```{r,collapse=T,out.width="30%",fig.show='hold'}
 acf(S2.b)
 acf(THETA.b[,1])
 acf(THETA.b[,2])
 ```
 
-
+Running a Gibbs sampler for 10,000 scans and saving every 10th scan produces a sequence of 1,000 values for each parameter, each sequence having a fairly low autocorrelation. For example, the lag-10 autocorrelations of $\theta_1$ and $\theta_2$ are `r acf(THETA.b[,c(1,2)])$acf[2]`. We can use these simulated values to make Monte Carlo approximations to various posterior quantities of interest. 
 
 ```{r,collapse=T,out.width="50%",fig.show='hold'}
 plot(density(THETA.b[,2],adj=2),xlim=range(BETA.pp[,2]), 
       main="",xlab="slope parameter",ylab="posterior density",lwd=2)
 lines(density(BETA.pp[,2],adj=2),col="gray",lwd=2)
-legend( -3 ,1.0 ,legend=c( expression(theta[2]),expression(tilde(beta)[2])), 
+legend( -2 ,1.0 ,legend=c( expression(theta[2]),expression(tilde(beta)[2])), 
         lwd=c(2,2),col=c("black","gray"),bty="n") 
 
 quantile(THETA.b[,2],prob=c(.025,.5,.975))
@@ -255,6 +265,14 @@ abline( mean(THETA.b[,1]),mean(THETA.b[,2]),lwd=2 )
 ```
 
 
+The first panel plots the posterior density of the expected within-school slope $\theta_2$ of a randomly sampled income, as well as the posterior predictive distribution of a randomly sampled slope. A 95% quantile-based posterior confidence interval for $\theta_2$ is (`r quantile(THETA.b[,2],prob=c(.025,.975))`), which, compared to our prior interval of (`r mu0[2]+c(-1.96,1.96)*sqrt(L0[2,2])`), indicates a strong alteration in our information about $\theta_2$.
+
+The fact that $\theta_2$ is unlikely to be negative only indicates that the population average of CBSA-level slopes is positive. It does not indicate that any given within-CSA slope cannot be negative. To clarify this distinction, the posterior predictive distribution of $\tilde\beta_2$, the slope for a to-be-sampled CBSA, is plotted in the same figure. Samples from this distribution can be generated by sampling a value $\boldsymbol{\tilde\beta}^{(s)}$ from a multivariate normal($\boldsymbol{\theta}^{(s)},\Sigma^{(s)}$) distribution for each scan $s$ of the Gibbs sampler. Notice that this posterior predictive distribution is much more spread out than the posterior distribution of $\theta_2$, reflecting the heterogeneity in slopes across CBSA. 
+
+Using the Monte Carlo approximation, we have $Pr(\tilde\beta_2<0|\mathbf{y_{1:m}, X_{1:m}})\approx$ `r mean(BETA.pp[,2]<0)`, which is small but not negligible.
+
+The second panel gives posterior expectations of the 52 CBSA-specific regression lines, with the average line given by the posterior mean of $\theta$ in black.
+Comparing this to the first panel indicates how the hierarchical model is able to share information across groups, shrinking extreme regression lines towards the across-group average. In particular, hardly any of the slopes are negative when we share information across groups.
 
 
 

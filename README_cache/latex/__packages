@@ -23,3 +23,5 @@ robcbi
 kableExtra
 truncnorm
 coda
+Rcpp
+brms
