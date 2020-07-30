@@ -1,6 +1,6 @@
 ---
-title: "Hierarchical Byes "
-subtitle: "for Generalized Linear Mixed Effect Model"
+title: 'Hierarchical Byes '
+subtitle: for Generalized Linear Mixed Effect Model
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output:
   html_document:
@@ -14,7 +14,7 @@ header-includes:
 
 
 ```{r setup, include=F}
-knitr::opts_chunk$set(message=FALSE, warning=F, echo=TRUE)
+knitr::opts_chunk$set(message=FALSE, warning=F, echo=TRUE,cache = TRUE)
 options(width = 2000)
 options(repos="https://cran.rstudio.com")
 options(scipen=6)
@@ -24,8 +24,7 @@ p_load(stargazer, pscl, mlmRev,mvtnorm, MASS, ggplot2,tidyverse,mlogit,BayesLogi
 ```
 
 
-#  {.tabset .tabset-fade .tabset-pills}
-
+#  
 
 ## The First Example
 
@@ -43,7 +42,11 @@ nhts2017 <- NHTS2017[sample(nrow(NHTS2017), 10000,replace =F), ]
 save(nhts2017, file="nhts2017.RData")
 ```
 
-Sampling 10000 observations from the original data excluded the zero-miles VMT, negative household income, and unknown CBSA id (XXXXX)
+Select "HOUSEID", "VMT_MILE", and five regressors
+
+excluded the zero-miles VMT, negative household income, and unknown CBSA id (XXXXX)
+
+Sample 10000 observations from the original data 
 
 ```{r, eval=T}
 load("nhts2017.RData")
@@ -51,6 +54,12 @@ str(nhts2017)
 summary(nhts2017)
 table(nhts2017$HH_CBSA)
 ```
+
+There are $m=52$ levels of CBSA.
+
+$\mathbf{Y}_{j}$ is a $n_j$ Vector.
+
+$\mathbf{X}_{j}$ is a $n_j\times p$ Matrix 
 
 ```{r}
 ids<-sort(unique(nhts2017$HH_CBSA)) 
@@ -77,6 +86,10 @@ for(j in 1:m) {
 }
 ```
 
+The first panel plots least squares estimates of the regression lines for the `r m` CBSA, along with an average of these lines in black. A large majority show an slight increase in expected VMT with increasing household income, although a few show a negative relationship. 
+
+The second and third panels of the figure relate the least squares estimates to sample size. Notice that CBSAs with the higher sample sizes have regression coefficients that are generally closer to the average, whereas CBSAs with extreme coefficients are generally those with low sample sizes. This phenomenon confirms that the smaller the sample size for the group, the more probable that unrepresentative data are sampled and an extreme least squares estimate is produced.
+
 ```{r,collapse=T,out.width="30%",fig.show='hold'}
 plot( range(nhts2017[,4]),c(0,40),type="n",xlab="HHFAMINC", ylab="VMT")  # range(NHTS2017[,2])
 for(j in 1:m) {    abline(BETA.LS[j,1],BETA.LS[j,2],col="gray")  }
@@ -93,15 +106,15 @@ abline(h= BETA.MLS[2],col="black",lwd=2)
 
 ### A hierarchical regression model
 
-(1) \(\mathbf{Z}\sim N(\boldsymbol{X\beta,I})\), 
+\(\mathbf{\theta}\sim N_p(\boldsymbol{\mu_0,\Lambda_0})\), 
 
-(2) \(\boldsymbol{\beta}\sim N(\boldsymbol{A\beta^{(0)},\sigma^2I})\), 
+\(\Sigma\sim Inverse-Wishart(\eta_{0},\boldsymbol{S_0^{-1}})\), 
 
-(3) prior density \(\pi(\boldsymbol{\beta^{(0)},\sigma^2})\qquad\)  (8)
+\(\sigma^2\sim Inverse-Gamma(\frac12\nu_0,\frac12\nu_0\sigma_0^2)\)
 
 
 
- The posterior density of the regression vector $\beta$ compromises between least squares estimates from the "full" k-dimensional model and the "reduced" p-dimensional model where $\boldsymbol{\beta=A\beta^{(0)}}$
+
 
 \[
 \begin{align} 
@@ -114,10 +127,7 @@ abline(h= BETA.MLS[2],col="black",lwd=2)
 \end{align}
 \]
 
-where \(Q(\boldsymbol{Z,\mu,\Sigma})=\boldsymbol{(Z-\mu)^T\Sigma^{-1}(Z-\mu)}\) and \(c(\mathbf{Z)}\) is a proportionality constant.
-
-one starts with initial guesses at $\boldsymbol{\beta}$ and $\sigma^2$, simulates the $Z_i$ from (3), and then simulates $\boldsymbol{\beta}$ and $\sigma^2$ from the distributions (9) and (10)
-
+where \(\boldsymbol{S_\theta}=\sum_{j=1}^m\boldsymbol{(\beta_j-\theta)(\beta_j-\theta)^T}\).
 
 
 
@@ -266,7 +276,23 @@ The starting value $\beta^{(0)}$ is the least square estimate $(\mathbf{X}^T\mat
 \(Z_i|\boldsymbol{y,\beta}\sim N(\mathbf{x}_i^T\boldsymbol{\beta},1)\) truncated by 0 at the \(\begin{cases}\text{left if}&y_i=1\\\text{right if}&y_i=0\end{cases}\)
 
 
+### Generalized linear mixed effects models
 
+- Gibbs steps for (θ, Σ)
+
+- Metropolis step for β
+
+- A Metropolis-Hastings approximation algorithm
+
+1. Sample $\mathbf{\theta}^{(s+1)}$ from its full conditional distribution.
+
+2. Sample $\Sigma^{(s+1)}$ from its full conditional distribution.
+
+3. For each $j\in\{1,..., m\},$
+
+   a) propose a new value $\beta^\star_j$;
+   
+   b) set $\beta^{(s+1)}_j$ equal to $\beta^\star_j$ or $\beta^{(s)}_j$ with the appropriate probability.
 
 
 ### Compare with the results using 'brms'

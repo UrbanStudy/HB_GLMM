@@ -1639,7 +1639,7 @@ summary {
 </div>
 
 
-<div id="section" class="section level1 tabset tabset-fade tabset-pills">
+<div id="section" class="section level1">
 <h1></h1>
 <div id="the-first-example" class="section level2">
 <h2>The First Example</h2>
@@ -1651,7 +1651,9 @@ summary {
 NHTS2017 &lt;- NHTS2017[NHTS2017$VMT_MILE!=-1&amp;NHTS2017$HHFAMINC&gt;=0&amp;NHTS2017$HH_CBSA!=&quot;XXXXX&quot;, ]
 nhts2017 &lt;- NHTS2017[sample(nrow(NHTS2017), 10000,replace =F), ]
 save(nhts2017, file=&quot;nhts2017.RData&quot;)</code></pre>
-<p>Sampling 10000 observations from the original data excluded the zero-miles VMT, negative household income, and unknown CBSA id (XXXXX)</p>
+<p>Select “HOUSEID”, “VMT_MILE”, and five regressors</p>
+<p>excluded the zero-miles VMT, negative household income, and unknown CBSA id (XXXXX)</p>
+<p>Sample 10000 observations from the original data</p>
 <pre class="r"><code>load(&quot;nhts2017.RData&quot;)
 str(nhts2017)</code></pre>
 <pre><code>## &#39;data.frame&#39;:    10000 obs. of  7 variables:
@@ -1675,6 +1677,9 @@ str(nhts2017)</code></pre>
 <pre><code>## 
 ## 12060 12420 12580 13820 14460 15380 16740 16980 17140 17460 18140 19100 19740 19820 24340 25540 26420 26900 27260 28140 29820 31080 31140 32820 33100 33340 33460 34980 35380 35620 36420 36740 37980 38060 38300 38900 39300 39580 40060 40140 40380 40900 41180 41620 41700 41740 41860 41940 42660 45300 47260 47900 XXXXX 
 ##   480   422    77    17    68   130   171   157    32    39    34  1790    41    41    19    17   974    27    27    29    23   537    12    19    43   567   112    19    19   832    17    26   104   138    44    39    43   106    23   176   176   660    54    23   318   516   350   180    52    30    35   115     0</code></pre>
+<p>There are <span class="math inline">\(m=52\)</span> levels of CBSA.</p>
+<p><span class="math inline">\(\mathbf{Y}_{j}\)</span> is a <span class="math inline">\(n_j\)</span> Vector.</p>
+<p><span class="math inline">\(\mathbf{X}_{j}\)</span> is a <span class="math inline">\(n_j\times p\)</span> Matrix</p>
 <pre class="r"><code>ids&lt;-sort(unique(nhts2017$HH_CBSA)) 
 m&lt;-length(ids)
 Y&lt;-list() ; X&lt;-list() ; N&lt;-NULL
@@ -1695,6 +1700,8 @@ for(j in 1:m) {
   BETA.LS&lt;-rbind(BETA.LS,c(fit$coef)) 
   S2.LS&lt;-c(S2.LS, summary(fit)$sigma^2) 
 }</code></pre>
+<p>The first panel plots least squares estimates of the regression lines for the 52 CBSA, along with an average of these lines in black. A large majority show an slight increase in expected VMT with increasing household income, although a few show a negative relationship.</p>
+<p>The second and third panels of the figure relate the least squares estimates to sample size. Notice that CBSAs with the higher sample sizes have regression coefficients that are generally closer to the average, whereas CBSAs with extreme coefficients are generally those with low sample sizes. This phenomenon confirms that the smaller the sample size for the group, the more probable that unrepresentative data are sampled and an extreme least squares estimate is produced.</p>
 <pre class="r"><code>plot( range(nhts2017[,4]),c(0,40),type=&quot;n&quot;,xlab=&quot;HHFAMINC&quot;, ylab=&quot;VMT&quot;)  # range(NHTS2017[,2])
 for(j in 1:m) {    abline(BETA.LS[j,1],BETA.LS[j,2],col=&quot;gray&quot;)  }
 
@@ -1709,12 +1716,9 @@ abline(h= BETA.MLS[2],col=&quot;black&quot;,lwd=2)</code></pre>
 </div>
 <div id="a-hierarchical-regression-model" class="section level3">
 <h3>A hierarchical regression model</h3>
-<ol style="list-style-type: decimal">
-<li><p><span class="math inline">\(\mathbf{Z}\sim N(\boldsymbol{X\beta,I})\)</span>,</p></li>
-<li><p><span class="math inline">\(\boldsymbol{\beta}\sim N(\boldsymbol{A\beta^{(0)},\sigma^2I})\)</span>,</p></li>
-<li><p>prior density <span class="math inline">\(\pi(\boldsymbol{\beta^{(0)},\sigma^2})\qquad\)</span> (8)</p></li>
-</ol>
-<p>The posterior density of the regression vector <span class="math inline">\(\beta\)</span> compromises between least squares estimates from the “full” k-dimensional model and the “reduced” p-dimensional model where <span class="math inline">\(\boldsymbol{\beta=A\beta^{(0)}}\)</span></p>
+<p><span class="math inline">\(\mathbf{\theta}\sim N_p(\boldsymbol{\mu_0,\Lambda_0})\)</span>,</p>
+<p><span class="math inline">\(\Sigma\sim Inverse-Wishart(\eta_{0},\boldsymbol{S_0^{-1}})\)</span>,</p>
+<p><span class="math inline">\(\sigma^2\sim Inverse-Gamma(\frac12\nu_0,\frac12\nu_0\sigma_0^2)\)</span></p>
 <p><span class="math display">\[
 \begin{align} 
 \boldsymbol{\beta|Z,\sigma^2}&amp;\sim N_k(\boldsymbol{\mu,V}) &amp;&amp;(9)\\ 
@@ -1725,8 +1729,7 @@ abline(h= BETA.MLS[2],col=&quot;black&quot;,lwd=2)</code></pre>
 \boldsymbol{\sigma^2|Z}&amp;\propto c(\mathbf{Z)\frac{|(I+XX^T\sigma^2)^{-1}|^{\frac12}}{|A^TX^T(I+XX^T\sigma^2)^{-1}XA|^{\frac12}}}\exp{\left\{\frac12Q(\boldsymbol{Z,XA\hat\theta_2,I+XX^T\sigma^2})\right\}}\pi(\sigma^2) &amp;&amp;(10)\\ 
 \end{align}
 \]</span></p>
-<p>where <span class="math inline">\(Q(\boldsymbol{Z,\mu,\Sigma})=\boldsymbol{(Z-\mu)^T\Sigma^{-1}(Z-\mu)}\)</span> and <span class="math inline">\(c(\mathbf{Z)}\)</span> is a proportionality constant.</p>
-<p>one starts with initial guesses at <span class="math inline">\(\boldsymbol{\beta}\)</span> and <span class="math inline">\(\sigma^2\)</span>, simulates the <span class="math inline">\(Z_i\)</span> from (3), and then simulates <span class="math inline">\(\boldsymbol{\beta}\)</span> and <span class="math inline">\(\sigma^2\)</span> from the distributions (9) and (10)</p>
+<p>where <span class="math inline">\(\boldsymbol{S_\theta}=\sum_{j=1}^m\boldsymbol{(\beta_j-\theta)(\beta_j-\theta)^T}\)</span>.</p>
 </div>
 <div id="posterior-analysis" class="section level3">
 <h3>Posterior analysis</h3>
@@ -1853,6 +1856,23 @@ abline( mean(THETA.b[,1]),mean(THETA.b[,2]),lwd=2 )</code></pre>
 <p><span class="math inline">\(\mu=\mathbf{x}_i^T\boldsymbol{\beta}\)</span></p>
 <p><span class="math inline">\(Z_i|\boldsymbol{y,\beta}\sim N(\mathbf{x}_i^T\boldsymbol{\beta},1)\)</span> truncated by 0 at the <span class="math inline">\(\begin{cases}\text{left if}&amp;y_i=1\\\text{right if}&amp;y_i=0\end{cases}\)</span></p>
 </div>
+</div>
+<div id="generalized-linear-mixed-effects-models" class="section level3">
+<h3>Generalized linear mixed effects models</h3>
+<ul>
+<li><p>Gibbs steps for (θ, Σ)</p></li>
+<li><p>Metropolis step for β</p></li>
+<li><p>A Metropolis-Hastings approximation algorithm</p></li>
+</ul>
+<ol style="list-style-type: decimal">
+<li><p>Sample <span class="math inline">\(\mathbf{\theta}^{(s+1)}\)</span> from its full conditional distribution.</p></li>
+<li><p>Sample <span class="math inline">\(\Sigma^{(s+1)}\)</span> from its full conditional distribution.</p></li>
+<li><p>For each <span class="math inline">\(j\in\{1,..., m\},\)</span></p>
+<ol style="list-style-type: lower-alpha">
+<li><p>propose a new value <span class="math inline">\(\beta^\star_j\)</span>;</p></li>
+<li><p>set <span class="math inline">\(\beta^{(s+1)}_j\)</span> equal to <span class="math inline">\(\beta^\star_j\)</span> or <span class="math inline">\(\beta^{(s)}_j\)</span> with the appropriate probability.</p></li>
+</ol></li>
+</ol>
 </div>
 <div id="compare-with-the-results-using-brms" class="section level3">
 <h3>Compare with the results using ‘brms’</h3>
