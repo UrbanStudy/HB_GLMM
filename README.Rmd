@@ -15,18 +15,18 @@ header-includes:
 
 
 ```{r setup, include=F}
-knitr::opts_chunk$set(message=FALSE, warning=F, echo=TRUE,cache = TRUE, fig.path = "README_figs/README-")
+knitr::opts_chunk$set(message=FALSE, warning=F, echo=TRUE,cache =T, fig.path = "README_figs/README-")
 options(width = 2000)
 options(repos="https://cran.rstudio.com")
 options(scipen=6)
-options(digits=4)
+options(digits=6)
 if (!require(pacman)) {install.packages("pacman"); library(pacman)}
 p_load(stargazer, pscl, mlmRev,mvtnorm, MASS,brms,coda, ggplot2,tidyverse,mlogit,BayesLogit,robcbi,kableExtra,truncnorm,lme4) # likelihoodAsy, devtools,loo,dagitty,rethinking
 ```
 
 
 
-## The First Example
+## The LMM Example
 
 ### NHTS data
 
@@ -48,8 +48,11 @@ excluded the zero-miles VMT, negative household income, and unknown CBSA id (XXX
 
 Sample 10000 observations from the original data 
 
+Add a new column "log_VMT"
+
 ```{r, eval=T}
 load("nhts2017.RData")
+nhts2017$log_VMT <- log(nhts2017[,2])
 str(nhts2017)
 summary(nhts2017)
 table(nhts2017$HH_CBSA)
@@ -67,11 +70,11 @@ m<-length(ids)
 Y<-list() ; X<-list() ; N<-NULL
 for(j in 1:m) 
 {
-  Y[[j]]<-nhts2017[nhts2017$HH_CBSA==ids[j],2] 
+  Y[[j]]<-nhts2017[nhts2017$HH_CBSA==ids[j],8]
   N[j]<- sum(nhts2017$HH_CBSA==ids[j])
   xj<-nhts2017[nhts2017$HH_CBSA==ids[j], 4] 
   xj<-(xj-mean(xj))
-  X[[j]]<-cbind( rep(1,N[j]), xj  )
+  X[[j]]<-cbind( rep(1,N[j]), xj)
 }
 ```
 
@@ -91,7 +94,7 @@ The first panel plots least squares estimates of the regression lines for the `r
 The second and third panels of the figure relate the least squares estimates to sample size. Notice that CBSAs with the higher sample sizes have regression coefficients that are generally closer to the average, whereas CBSAs with extreme coefficients are generally those with low sample sizes. This phenomenon confirms that the smaller the sample size for the group, the more probable that unrepresentative data are sampled and an extreme least squares estimate is produced.
 
 ```{r,collapse=T,out.width="30%",fig.show='hold'}
-plot( range(nhts2017[,4]),c(0,40),type="n",xlab="HHFAMINC", ylab="VMT")  # range(NHTS2017[,2])
+plot( range(nhts2017[,4]),c(0,5),type="n",xlab="HHFAMINC", ylab="ln(VMT)")
 for(j in 1:m) {    abline(BETA.LS[j,1],BETA.LS[j,2],col="gray")  }
 
 BETA.MLS<-apply(BETA.LS,2,mean)
@@ -259,7 +262,7 @@ quantile(THETA.b[,2],prob=c(.025,.5,.975))
 mean(BETA.pp[,2]<0) 
 
 BETA.PM<-BETA.ps/1000
-plot( range(nhts2017[,4]),c(0,40),type="n",xlab="HHFAMINC", ylab="VMT") # range(nels[,3]),range(nels[,4])
+plot( range(nhts2017[,4]),c(0,5),type="n",xlab="HHFAMINC", ylab="VMT") # range(nels[,3]),range(nels[,4])
 for(j in 1:m) {    abline(BETA.PM[j,1],BETA.PM[j,2],col="gray")  }
 abline( mean(THETA.b[,1]),mean(THETA.b[,2]),lwd=2 )
 ```
@@ -276,16 +279,44 @@ Comparing this to the first panel indicates how the hierarchical model is able t
 
 
 
+## The GLMM Example
 
+A basic generalized linear mixed model is as follows:
+
+\[\boldsymbol{\beta}_{1:m}\overset{iid}{\sim} N_p(\boldsymbol{\theta},\Sigma)\]
+
+\[p(\boldsymbol{y_j|\beta_j,X_j},\gamma)=\prod_{i=1}^{n_j} p(y_{i,j}|\boldsymbol{\beta_j^T x_{i,j}},\gamma)\]
 
 ### Generalized linear mixed effects models
 
-- Gibbs steps for \(\boldsymbol{\theta},\Sigma)\)
+Estimation for the linear mixed effects model was straightforward because the full conditional distribution of each parameter was standard, allowing for the easy implementation of a Gibbs sampling algorithm. 
+
+In contrast, for nonnormal generalized linear mixed models, typically only $\theta$ and $\Sigma$ have standard full conditional distributions. This suggests we use a Metropolis-Hastings algorithm to approximate the posterior distribution of the parameters, using a combination of Gibbs steps for updating ($\theta,\Sigma$) with a Metropolis step for updating each $\beta_j$.
+
+If there is such a $\gamma$ parameter, it can be updated using a Gibbs step if a full conditional distribution is available, and a Metropolis step if not.
 
 
-- Metropolis step for $\boldsymbol{\beta}_j$
+
+**Gibbs steps for** \(\boldsymbol{\theta},\Sigma)\)
+
+
+Whether $p(y|\boldsymbol{\beta^T x})$ is a normal model, a Poisson model, or some other generalized linear model, the full conditional distributions of $\theta$ and $\Sigma$ will be the multivariate normal and inverse-Wishart distributions.
+
+**Metropolis step for $\boldsymbol{\beta}_j$**
+
+Updating $\beta_j$ in a Markov chain can proceed by proposing a new value of $\beta^\star_j$ based on the current parameter values and then accepting or rejecting it with the appropriate probability. A standard proposal distribution in this situation would be a multivariate normal distribution with mean equal to the current value $\beta^{(s)}_j$ and with some proposal variance $V^{(s)}_j)$. In this case the Metropolis step is as follows:
+
+1. Sample $\beta^\star_j\sim$ multivariate normal $(\beta^{(s)}_j, V^{(s)}_j)$.
+
+2. Compute the acceptance ratio $r=\frac{p(y_j|X_j,\beta^\star_j)p(\beta^\star_j|\boldsymbol{\theta}^{(s)},\Sigma^{(s)})}{p(y_j|X_j,\beta^{(s)}_j)p(\beta^{(s)}_j|\boldsymbol{\theta}^{(s)},\Sigma^{(s)})}$.
+
+3. Sample $u\sim$ uniform(0,1). Set $\beta^{(s+1)}_j$ to $\beta^\star_j$ if $u<r$ and to $\beta^{(s)}_j$ if $u > r$.
+
+In many cases, setting $V^{(s)}_j)$ equal to a scaled version of $\Sigma^{(s)}$ produces a well mixing Markov chain, although the task of finding the right scale might have to proceed by trial and error.
 
 - A Metropolis-Hastings approximation algorithm
+
+Given current values at scan $s$ of the Markov chain, we obtain new values as follows:
 
 1. Sample $\boldsymbol{\theta}^{(s+1)}$ from its full conditional distribution.
 
@@ -300,4 +331,43 @@ Comparing this to the first panel indicates how the hierarchical model is able t
 
 ### Compare with the results using 'brms'
 
+```{r,warning=F,message=F}
+fit1 <- brm(bf(log_VMT ~ HHFAMINC + (1|HH_CBSA), sigma ~ (1|HH_CBSA)),  # HHSIZE + HHFAMINC + WRKCOUNT + LIF_CYC
+            chains = 2, data = nhts2017, family = gaussian())
+```
+
+
+```{r,collapse=T,out.width="50%",fig.show='hold'}
+summary(fit1)
+plot(fit1, N = 2, ask = FALSE)
+plot(conditional_effects(fit1), points = TRUE)
+```
+
+These are close to the previous results: 
+
+The expected value of $\theta_2$ is `r mean(THETA.b[,2])`, the 2.5%, 50%, and 97.5% quantiles are `r quantile(THETA.b[,2],prob=c(.025,.5,.975))`
+
+The expected value of $\beta_2$ is `r mean(BETA.pp[,2])`, the 2.5%, 50%, and 97.5% quantiles are `r quantile(BETA.pp[,2],prob=c(.025,.5,.975))`
+
+The conditional_effects of group don't reveal that the variances of both groups are indeed different.
+
+
+We can compute the residual standard deviations on the original scale using the hypothesis method.
+
+```{r}
+hyp <- c("exp(sigma_Intercept) = 0",
+         "exp(sigma_Intercept + HHFAMINC) = 0")
+hypothesis(fit1, hyp)
+```
+
+Or directly compare them and plot the posterior distribution of their difference.
+
+```{r}
+hyp <- "exp(sigma_Intercept + HHFAMINC) > exp(sigma_Intercept)"
+(hyp <- hypothesis(fit1, hyp))
+```
+
+```{r,collapse=T,out.width="50%",fig.show='hold'}
+plot(hyp, chars = NULL)
+```
 
